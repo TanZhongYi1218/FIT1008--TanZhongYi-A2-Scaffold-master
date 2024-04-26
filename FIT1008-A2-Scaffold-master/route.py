@@ -26,7 +26,7 @@ class RouteSplit:
 
     def remove_branch(self) -> RouteStore:
         """Removes the branch, should just leave the remaining following route."""
-        raise NotImplementedError()
+        return self.following.store
 
 @dataclass
 class RouteSeries:
@@ -59,24 +59,23 @@ class RouteSeries:
         Returns a route store which would be the result of:
         Adding a computer after the current computer, but before the following route.
         """
-        return RouteSplit(Route(None), Route(None), Route(self))
+        return RouteSeries(self.computer, Route(RouteSeries(computer, self.following)))
 
     def add_empty_branch_before(self) -> RouteStore:
         """Returns a route store which would be the result of:
         Adding an empty branch, where the current routestore is now the following path.
         """
-        return RouteSeries(self.computer, Route(RouteSplit(Route(None), Route(None), self.following)))
+        return RouteSplit(Route(None), Route(None), Route(self))
 
     def add_empty_branch_after(self) -> RouteStore:
         """
         Returns a route store which would be the result of:
         Adding an empty branch after the current computer, but before the following route.
         """
-        raise NotImplementedError()
+        return RouteSeries(self.computer, Route(RouteSplit(Route(None), Route(None), self.following)))
 
 
 RouteStore = Union[RouteSplit, RouteSeries, None]
-
 
 @dataclass
 class Route:
