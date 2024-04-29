@@ -98,32 +98,46 @@ class Route:
         return Route(RouteSplit(Route(None), Route(None), self))
 
     def follow_path(self, virus_type: VirusType) -> None:
-        """Follow a path and add computers according to a virus_type."""
-        current_route = self
-        while current_route.store is not None:
-            if isinstance(current_route.store, RouteSeries):
-                virus_type.add_computer(current_route.store.computer)
-                current_route = current_route.store.following
-            elif isinstance(current_route.store, RouteSplit):
-                decision = virus_type.select_branch(current_route.store.top, current_route.store.bottom)
-                if decision == BranchDecision.TOP:
-                    current_route = current_route.store.top
-                elif decision == BranchDecision.BOTTOM:
-                    current_route = current_route.store.bottom
-                else:
-                    break
+        """
+        Follow a path and add computers according to a virus_type.
+        It has a time complexity of O(N), where N is the number of elements in the route.
+        This is because the function traverses the route once, visiting each element exactly once.
+        The operations inside the loop (checking the type of the current route and adding a computer
+        to the virus) are constant time operations, so they do not affect the overall time complexity.
+        """
+        current_route = self  # Start from the current route
+        while current_route.store is not None:  # Continue until the end of the route
+            if isinstance(current_route.store, RouteSeries):  # If the current route is a RouteSeries
+                virus_type.add_computer(current_route.store.computer)  # Add the computer to the virus
+                current_route = current_route.store.following  # Move to the next route
+            elif isinstance(current_route.store, RouteSplit):  # If the current route is a RouteSplit
+                decision = virus_type.select_branch(current_route.store.top,
+                                                    current_route.store.bottom)  # Decide which branch to take
+                if decision == BranchDecision.TOP:  # If the decision is to take the top branch
+                    current_route = current_route.store.top  # Move to the top branch
+                elif decision == BranchDecision.BOTTOM:  # If the decision is to take the bottom branch
+                    current_route = current_route.store.bottom  # Move to the bottom branch
+                else:  # If the decision is to stop
+                    break  # Stop following the path
 
     def add_all_computers(self) -> list[Computer]:
-        """Returns a list of all computers on the route."""
-        computers = []
-        current_route = self
-        while current_route.store is not None:
-            if isinstance(current_route.store, RouteSeries):
-                computers.append(current_route.store.computer)
-                current_route = current_route.store.following
-            elif isinstance(current_route.store, RouteSplit):
+        """
+        Returns a list of all computers on the route.
+        It has a time complexity of O(N), where N is the number of elements in the route.
+        Similar to the follow_path function, this function also traverses the route once,
+        visiting each element exactly once. The operations inside the loop (checking the type of
+        the current route and adding a computer to the list) are constant time operations,
+        so they do not affect the overall time complexity.
+        """
+        computers = []  # Initialize an empty list to store the computers
+        current_route = self  # Start from the current route
+        while current_route.store is not None:  # Continue until the end of the route
+            if isinstance(current_route.store, RouteSeries):  # If the current route is a RouteSeries
+                computers.append(current_route.store.computer)  # Add the computer to the list
+                current_route = current_route.store.following  # Move to the next route
+            elif isinstance(current_route.store, RouteSplit):  # If the current route is a RouteSplit
                 # Add computers from both branches
-                computers.extend(current_route.store.top.add_all_computers())
-                computers.extend(current_route.store.bottom.add_all_computers())
-                current_route = current_route.store.following
-        return computers
+                computers.extend(current_route.store.top.add_all_computers())  # Add computers from the top branch
+                computers.extend(current_route.store.bottom.add_all_computers())  # Add computers from the bottom branch
+                current_route = current_route.store.following  # Move to the next route
+        return computers  # Return the list of computers
