@@ -1,5 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
+from branch_decision import BranchDecision
 
 from computer import Computer
 
@@ -98,8 +99,31 @@ class Route:
 
     def follow_path(self, virus_type: VirusType) -> None:
         """Follow a path and add computers according to a virus_type."""
-        raise NotImplementedError()
+        current_route = self
+        while current_route.store is not None:
+            if isinstance(current_route.store, RouteSeries):
+                virus_type.add_computer(current_route.store.computer)
+                current_route = current_route.store.following
+            elif isinstance(current_route.store, RouteSplit):
+                decision = virus_type.select_branch(current_route.store.top, current_route.store.bottom)
+                if decision == BranchDecision.TOP:
+                    current_route = current_route.store.top
+                elif decision == BranchDecision.BOTTOM:
+                    current_route = current_route.store.bottom
+                else:
+                    break
 
     def add_all_computers(self) -> list[Computer]:
         """Returns a list of all computers on the route."""
-        raise NotImplementedError()
+        computers = []
+        current_route = self
+        while current_route.store is not None:
+            if isinstance(current_route.store, RouteSeries):
+                computers.append(current_route.store.computer)
+                current_route = current_route.store.following
+            elif isinstance(current_route.store, RouteSplit):
+                # Add computers from both branches
+                computers.extend(current_route.store.top.add_all_computers())
+                computers.extend(current_route.store.bottom.add_all_computers())
+                current_route = current_route.store.following
+        return computers

@@ -58,17 +58,67 @@ class LazyVirus(VirusType):
 
 class RiskAverseVirus(VirusType):
     def select_branch(self, top_branch: Route, bottom_branch: Route) -> BranchDecision:
-        """
-        This virus is risk averse and likes to choose the path with the lowest risk factor.
-        """
-        raise NotImplementedError()
+        # Implement the logic as per the specifications
+        top_route = type(top_branch.store) == RouteSeries
+        bot_route = type(bottom_branch.store) == RouteSeries
 
+        if top_route and bot_route:
+            top_comp = top_branch.store.computer
+            bot_comp = bottom_branch.store.computer
+
+            top_value = max(top_comp.hacking_difficulty, top_comp.hacked_value / 2) / (top_comp.risk_factor if top_comp.risk_factor != 0 else 1)
+            bot_value = max(bot_comp.hacking_difficulty, bot_comp.hacked_value / 2) / (bot_comp.risk_factor if bot_comp.risk_factor != 0 else 1)
+
+            if top_value > bot_value:
+                return BranchDecision.TOP
+            elif top_value < bot_value:
+                return BranchDecision.BOTTOM
+            else:
+                return BranchDecision.STOP if top_comp.risk_factor == bot_comp.risk_factor else (BranchDecision.TOP if top_comp.risk_factor < bot_comp.risk_factor else BranchDecision.BOTTOM)
+        elif top_route:
+            return BranchDecision.BOTTOM
+        else:
+            return BranchDecision.TOP
 
 class FancyVirus(VirusType):
     CALC_STR = "7 3 + 8 - 2 * 2 /"
 
+    def calculate_threshold(self, calc_str: str) -> float:
+        stack = []
+        for token in calc_str.split():
+            if token in "+-*/":
+                num2 = stack.pop()
+                num1 = stack.pop()
+                if token == '+':
+                    stack.append(num1 + num2)
+                elif token == '-':
+                    stack.append(num1 - num2)
+                elif token == '*':
+                    stack.append(num1 * num2)
+                else:
+                    stack.append(num1 / num2)
+            else:
+                stack.append(float(token))
+        return stack.pop()
+
     def select_branch(self, top_branch: Route, bottom_branch: Route) -> BranchDecision:
-        """
-        This virus has a fancy-pants and likes to overcomplicate its approach.
-        """
-        raise NotImplementedError()
+        # Implement the logic as per the specifications
+        threshold = self.calculate_threshold(self.CALC_STR)
+
+        top_route = type(top_branch.store) == RouteSeries
+        bot_route = type(bottom_branch.store) == RouteSeries
+
+        if top_route and bot_route:
+            top_comp = top_branch.store.computer
+            bot_comp = bottom_branch.store.computer
+
+            if top_comp.hacked_value < threshold:
+                return BranchDecision.TOP
+            elif bot_comp.hacked_value > threshold:
+                return BranchDecision.BOTTOM
+            else:
+                return BranchDecision.STOP
+        elif top_route:
+            return BranchDecision.BOTTOM
+        else:
+            return BranchDecision.TOP
