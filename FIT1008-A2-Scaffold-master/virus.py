@@ -1,11 +1,15 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from computer import Computer
-from route import Route, RouteSeries
+from route import Route, RouteSeries, RouteSplit
 from branch_decision import BranchDecision
+from data_structures.linked_stack import LinkedStack
 
 
 class VirusType(ABC):
+    # NOTE: Unless stated otherwise, time complexity for each method of t
+    #       his class is measured with respect to its input size.
+    #
 
     def __init__(self) -> None:
         self.computers = []
@@ -15,18 +19,23 @@ class VirusType(ABC):
 
     @abstractmethod
     def select_branch(self, top_branch: Route, bottom_branch: Route) -> BranchDecision:
-        raise NotImplementedError()
+        pass
 
 
 class TopVirus(VirusType):
+    # NOTE: Time complexity for each method of this class is measured with respect to its
+    #       input size.
+
     def select_branch(self, top_branch: Route, bottom_branch: Route) -> BranchDecision:
         # Always select the top branch
+        # Time Complexity (Best and Worst): O(1)
         return BranchDecision.TOP
 
 
 class BottomVirus(VirusType):
     def select_branch(self, top_branch: Route, bottom_branch: Route) -> BranchDecision:
         # Always select the bottom branch
+        # Time Complexity (Best and Worst): O(1)
         return BranchDecision.BOTTOM
 
 
@@ -35,19 +44,15 @@ class LazyVirus(VirusType):
         """
         Try looking into the first computer on each branch,
         take the path of the least difficulty.
-        Time complexity: O(1), as it only checks the first computer of each branch.
+        Time Complexity (Best and Worst): O(1)
         """
-        # Check if the first route in both branches is a RouteSeries
         top_route = type(top_branch.store) == RouteSeries
         bot_route = type(bottom_branch.store) == RouteSeries
 
-        # If both branches have a RouteSeries
         if top_route and bot_route:
-            # Get the computer from both branches
             top_comp = top_branch.store.computer
             bot_comp = bottom_branch.store.computer
 
-            # Compare the hacking difficulty of both computers
             if top_comp.hacking_difficulty < bot_comp.hacking_difficulty:
                 return BranchDecision.TOP
             elif top_comp.hacking_difficulty > bot_comp.hacking_difficulty:
@@ -64,95 +69,111 @@ class LazyVirus(VirusType):
 class RiskAverseVirus(VirusType):
     def select_branch(self, top_branch: Route, bottom_branch: Route) -> BranchDecision:
         """
-        Selects a branch based on the risk factors and hacking difficulties of the computers in the branches.
-        Time complexity: O(1), as it only checks the first computer of each branch.
+        This virus is risk averse and likes to choose the path with the lowest risk factor.
+
+        isinstance: A method which compares whether the (data type/ class) of an object
+        is the same as the given (data type/ class).
+        max: A method which returns the highest among the input values.
+
+        Time Complexity:
+            Best: O(isinstance), when the RouteStore (data type/ class) of one of the branches
+            is not RouteSeries (data type/ class).
+            Worst: O(isinstance + max), when both branches have the same RouteStore (data type/ class)
+            which are RouteSeriers (data type/ class).
         """
-        # Check if the first route in both branches is a RouteSeries
-        top_route = type(top_branch.store) == RouteSeries
-        bot_route = type(bottom_branch.store) == RouteSeries
 
-        # If both branches have a RouteSeries
-        if top_route and bot_route:
-            # Get the computer from both branches
-            top_comp = top_branch.store.computer
-            bot_comp = bottom_branch.store.computer
+        # Checks whether both RouteStore classes are RouteSeries.
+        if isinstance(top_branch.store, RouteSeries) and isinstance(bottom_branch.store, RouteSeries):  # O(isinstance)
 
-            # Calculate the value for both computers based on the hacking difficulty, hacked value, and risk factor
-            top_value = max(top_comp.hacking_difficulty, top_comp.hacked_value / 2) / (top_comp.risk_factor if top_comp.risk_factor != 0 else 1)
-            bot_value = max(bot_comp.hacking_difficulty, bot_comp.hacked_value / 2) / (bot_comp.risk_factor if bot_comp.risk_factor != 0 else 1)
+            # Checks whether one of computers have a risk factor of 0.0.
+            if top_branch.store.computer.risk_factor == 0.0 or bottom_branch.store.computer.risk_factor == 0.0:
+                if top_branch.store.computer.risk_factor == 0.0 and bottom_branch.store.computer.risk_factor == 0.0:
+                    if top_branch.store.computer.hacking_difficulty < bottom_branch.store.computer.hacking_difficulty:
+                        return BranchDecision.TOP
+                    elif top_branch.store.computer.hacking_difficulty > bottom_branch.store.computer.hacking_difficulty:
+                        return BranchDecision.BOTTOM
 
-            # Compare the calculated values
-            if top_value > bot_value:
+                elif top_branch.store.computer.risk_factor == 0.0:
+                    return BranchDecision.TOP
+                elif bottom_branch.store.computer.risk_factor == 0.0:
+                    return BranchDecision.BOTTOM
+
+            highest_value_top_branch = max(top_branch.store.computer.hacking_difficulty,
+                                           (top_branch.store.computer.hacked_value / 2))  # O(max)
+            highest_value_bottom_branch = max(bottom_branch.store.computer.hacking_difficulty,
+                                              (bottom_branch.store.computer.hacked_value / 2))
+
+            highest_value_top_branch = self.divide_by_risk_factor(top_branch.store.computer.risk_factor,
+                                                                  highest_value_top_branch)
+            highest_value_bottom_branch = self.divide_by_risk_factor(bottom_branch.store.computer.risk_factor,
+                                                                     highest_value_bottom_branch)
+
+            if highest_value_top_branch > highest_value_bottom_branch:
                 return BranchDecision.TOP
-            elif top_value < bot_value:
+
+            elif highest_value_top_branch < highest_value_bottom_branch:
                 return BranchDecision.BOTTOM
-            else:
-                # If the values are equal, compare the risk factors
-                return BranchDecision.STOP if top_comp.risk_factor == bot_comp.risk_factor else (BranchDecision.TOP if top_comp.risk_factor < bot_comp.risk_factor else BranchDecision.BOTTOM)
-        elif top_route:
-            return BranchDecision.BOTTOM
-        else:
+
+            if top_branch.store.computer.risk_factor < bottom_branch.store.computer.risk_factor:
+                return BranchDecision.TOP
+
+            elif top_branch.store.computer.risk_factor > bottom_branch.store.computer.risk_factor:
+                return BranchDecision.BOTTOM
+            return BranchDecision.STOP
+
+        elif isinstance(top_branch.store, RouteSplit):
             return BranchDecision.TOP
+
+        elif isinstance(bottom_branch.store, RouteSplit):
+            return BranchDecision.BOTTOM
+        return BranchDecision.TOP
+
+    def divide_by_risk_factor(self, risk_factor: float, value: float | int) -> float:
+        '''
+        Divides the highest value of a branch by the risk factor of the branch computer.
+
+        Time Complexity (Best/ Worst) = O(1)
+        '''
+        if risk_factor != 0:
+            value = value / risk_factor
+        return value
 
 
 class FancyVirus(VirusType):
     CALC_STR = "7 3 + 8 - 2 * 2 /"
 
-    def calculate_threshold(self, calc_str: str) -> float:
-        """
-        Calculates a threshold using reverse polish notation.
-        Time complexity: O(N), where N is the number of elements in the calculation string.
-        """
-        # Initialize an empty stack
-        stack = []
-        # Split the calculation string into tokens
-        for token in calc_str.split():
-            # If the token is an operator
-            if token in "+-*/":
-                # Pop the last two numbers from the stack
-                num2 = stack.pop()
-                num1 = stack.pop()
-                # Perform the operation and push the result back to the stack
-                if token == '+':
-                    stack.append(num1 + num2)
-                elif token == '-':
-                    stack.append(num1 - num2)
-                elif token == '*':
-                    stack.append(num1 * num2)
-                else:
-                    stack.append(num1 / num2)
-            else:
-                # If the token is a number, push it to the stack
-                stack.append(float(token))
-        # Return the last number in the stack
-        return stack.pop()
-
     def select_branch(self, top_branch: Route, bottom_branch: Route) -> BranchDecision:
         """
-        Selects a branch based on a calculated threshold.
-        Time complexity: O(1), as it only checks the first computer of each branch.
+        This virus has a fancy-pants and likes to overcomplicate its approach.
+
+        n: Number of characters in CALC_STAR
+
+        Time Complexity (Best and Worst): O(n)
         """
-        # Calculate the threshold
-        threshold = self.calculate_threshold(self.CALC_STR)
-
-        # Check if the first route in both branches is a RouteSeries
-        top_route = type(top_branch.store) == RouteSeries
-        bot_route = type(bottom_branch.store) == RouteSeries
-
-        # If both branches have a RouteSeries
-        if top_route and bot_route:
-            # Get the computer from both branches
-            top_comp = top_branch.store.computer
-            bot_comp = bottom_branch.store.computer
-
-            # Compare the hacked value of both computers with the threshold
-            if top_comp.hacked_value < threshold:
-                return BranchDecision.TOP
-            elif bot_comp.hacked_value > threshold:
-                return BranchDecision.BOTTOM
+        oper_stack = LinkedStack()
+        operations_list = FancyVirus.CALC_STR.split()
+        for token in operations_list:
+            if token in ['+', '-', '*', '/']:
+                num1 = oper_stack.pop()
+                num2 = oper_stack.pop()
+                res = eval(str(num2) + token + str(num1))
+                oper_stack.push(res)
             else:
+                oper_stack.push(token)
+        threshold = oper_stack.pop()
+
+        if isinstance(top_branch.store, RouteSeries) and isinstance(bottom_branch.store, RouteSeries):
+            if isinstance(top_branch.store.computer, Computer) and isinstance(bottom_branch.store.computer, Computer):
+                if top_branch.store.computer.hacked_value < threshold:
+                    return BranchDecision.TOP
+
+                elif bottom_branch.store.computer.hacked_value > threshold:
+                    return BranchDecision.BOTTOM
                 return BranchDecision.STOP
-        elif top_route:
-            return BranchDecision.BOTTOM
-        else:
+
+        elif isinstance(top_branch, RouteSplit):
             return BranchDecision.TOP
+
+        elif isinstance(bottom_branch, RouteSplit):
+            return BranchDecision.BOTTOM
+        return BranchDecision.TOP
