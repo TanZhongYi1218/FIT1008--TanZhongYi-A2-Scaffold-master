@@ -109,56 +109,56 @@ class Route:
             ))
 
     def follow_path(self, virus: VirusType) -> None:
-        """Follow a path and add computers according to a virus_type."""
-        path = self
+        """Follow a path and add computers according to a virus type."""
+        current = self
         stop = False
-        following_items_stack = LinkedStack()
-
-        dispatch_table = {
-            RouteSplit: self.handle_route_split,
-            RouteSeries: self.handle_route_series,
-            None: self.handle_none_type
-        }
+        post_path_computers = LinkedStack()
 
         while True:
-            handler = dispatch_table.get(type(path.store))
-            if handler:
-                stop, path = handler(path, virus, following_items_stack)
-            if stop:
+            if isinstance(current.store, RouteSplit):
+                current = current.store
+                branch_decision = virus.select_branch(current.top, current.bottom)
+
+                # Handle nested RouteSeries within RouteSplit
+                self.process_route_series(current.following, post_path_computers, virus)
+
+                if branch_decision == BranchDecision.TOP:
+                    current = self.process_branch(current.top, virus)
+                    if current is None:
+                        break
+                elif branch_decision == BranchDecision.BOTTOM:
+                    current = self.process_branch(current.bottom, virus)
+                    if current is None:
+                        break
+                elif branch_decision == BranchDecision.STOP:
+                    stop = True
+                    break
+
+            elif isinstance(current.store, RouteSeries):
+                virus.add_computer(current.store.computer)
+                current = current.store.following
+
+            else:
                 break
 
-        while not following_items_stack.is_empty() and not stop:
-            virus.add_computer(following_items_stack.pop())
+        # Add any computers found in post path processing
+        while not post_path_computers.is_empty() and not stop:
+            virus.add_computer(post_path_computers.pop())
 
-    def handle_route_split(self, path, virus, following_items_stack):
-        path = path.store
-        branch_decision = virus.select_branch(path.top, path.bottom)
+    def process_route_series(self, route, stack, virus):
+        """Process a nested RouteSeries and add computers to a stack."""
+        while isinstance(route.store, RouteSeries):
+            stack.push(route.store.computer)
+            route = route.store.following
 
-        if isinstance(path.following.store, RouteSeries) and isinstance(path.following.store.computer, Computer):
-            self.populate_following_items_stack(path, following_items_stack)
-
-        if branch_decision == BranchDecision.TOP:
-            path = self.handle_top_decision(path)
-        elif branch_decision == BranchDecision.BOTTOM:
-            path = self.handle_bottom_decision(path)
-        elif branch_decision == BranchDecision.STOP:
-            return True, path
-
-        return False, path
-
-    def handle_route_series(self, path, virus, following_items_stack):
-        virus.add_computer(path.store.computer)
-        return False, path.store.following
-
-    def handle_none_type(self, path, virus, following_items_stack):
-        return True, path
-
-    def populate_following_items_stack(self, path, following_items_stack):
-        """
-        Populate the following_items_stack based on the path.
-        """
-        if isinstance(path.following.store, RouteSeries) and isinstance(path.following.store.computer, Computer):
-            following_items_stack.push(path.following.store.computer)
+    def process_branch(self, branch, virus):
+        """Process a branch decision and return the next path or None if end."""
+        if isinstance(branch.store, RouteSeries):
+            virus.add_computer(branch.store.computer)
+            return branch.store.following
+        elif isinstance(branch.store, RouteSplit):
+            return branch
+        return None
 
     def add_all_computers(self) -> list[Computer]:
         """Returns a list of all computers on the route."""
